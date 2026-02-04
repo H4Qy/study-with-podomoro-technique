@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Podomoro4u</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Architects+Daughter&family=Inter:wght@400;700&display=swap');
+
+        :root {
+            --bg: #fdfdfd;
+            --ink: #2d3436;
+            --accent: #0984e3;
+            --paper-line: #e0e0e0;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            font-family: 'Architects Daughter', cursive;
+            background: var(--bg);
+            background-image: 
+                linear-gradient(var(--paper-line) 1px, transparent 1px),
+                linear-gradient(90deg, var(--paper-line) 1px, transparent 1px);
+            background-size: 30px 30px;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            color: var(--ink);
+            user-select: none;
+        }
+
+        /* --- Doodle Canvas (Drawing Layer) --- */
+        #sketchPad {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+            cursor: crosshair;
+            touch-action: none;
+            display: none; /* Sembunyi secara default */
+        }
+
+        #sketchPad.active {
+            display: block;
+            pointer-events: auto;
+        }
+
+        /* --- Sketch Toolbar --- */
+        .sketch-tools {
+            position: fixed;
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: white;
+            border: 2px solid var(--ink);
+            padding: 10px;
+            border-radius: 10px;
+            display: none;
+            flex-direction: column;
+            gap: 15px;
+            z-index: 100;
+            box-shadow: 4px 4px 0px var(--ink);
+        }
+
+        .tool-group { display: flex; flex-direction: column; gap: 8px; align-items: center; }
+        .tool-label { font-size: 10px; text-transform: uppercase; font-weight: bold; }
+
+        .color-dot {
+            width: 24px; height: 24px; border-radius: 50%; border: 2px solid #eee;
+            cursor: pointer; transition: transform 0.2s;
+        }
+        .color-dot.active { transform: scale(1.2); border-color: var(--ink); }
+
+        .size-dot {
+            background: var(--ink); border-radius: 50%; cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .size-dot.active { transform: scale(1.3); background: var(--accent); }
+
+        /* --- Doodle Decor --- */
+        .sketch-decor {
+            position: fixed; z-index: -1; pointer-events: none; opacity: 0.3;
+            filter: grayscale(1);
+        }
+
+        /* --- Main Container --- */
+        .doodle-panel {
+            width: 90%; max-width: 400px;
+            background: white;
+            border: 3px solid var(--ink);
+            border-radius: 15px;
+            box-shadow: 8px 8px 0px var(--ink);
+            padding: 30px 24px;
+            text-align: center;
+            position: relative;
+            z-index: 10;
+            transform: rotate(-0.5deg);
+        }
+
+        h1 {
+            font-size: 28px; margin-bottom: 15px;
+            text-decoration: underline wavy var(--accent);
+        }
+
+        .status-bubble {
+            font-size: 16px;
+            border: 2px solid var(--ink);
+            padding: 10px;
+            border-radius: 50% 20% / 10% 40%;
+            margin-bottom: 25px;
+            background: #fff;
+            min-height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* --- Timer Canvas Area --- */
+        .visual-container {
+            position: relative; width: 220px; height: 220px; margin: 0 auto 25px;
+        }
+
+        .timer-svg {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            transform: rotate(-90deg); z-index: 5;
+        }
+        .timer-track { fill: none; stroke: #eee; stroke-width: 6; stroke-dasharray: 5, 5; }
+        .timer-progress {
+            fill: none; stroke: var(--ink); stroke-width: 8; stroke-linecap: round;
+            stroke-dasharray: 660; transition: stroke-dashoffset 1s linear;
+        }
+
+        .inner-content {
+            position: absolute; top: 10px; left: 10px; width: 200px; height: 200px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+
+        .time-display {
+            font-size: 50px; font-weight: 700; color: var(--ink);
+            font-family: 'Inter', sans-serif; letter-spacing: -2px;
+        }
+
+        /* --- Buttons --- */
+        .controls { display: flex; flex-direction: column; gap: 12px; align-items: center; }
+        .btn {
+            border: 2px solid var(--ink); padding: 10px 30px; border-radius: 5px;
+            font-weight: 700; cursor: pointer; transition: 0.1s;
+            font-family: inherit; font-size: 18px;
+            background: white; box-shadow: 4px 4px 0px var(--ink);
+        }
+        .btn:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0px var(--ink); }
+        .btn-main { background: var(--accent); color: white; }
+
+        #gameCanvas {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 2;
+        }
+
+        /* --- Footer Controls --- */
+        .footer-tools {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            z-index: 110;
+            pointer-events: none;
+        }
+
+        .footer-btn {
+            background: white;
+            border: 2px solid var(--ink);
+            padding: 8px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: inherit;
+            box-shadow: 3px 3px 0px var(--ink);
+            pointer-events: auto;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .footer-btn:active { transform: translate(1px, 1px); box-shadow: 2px 2px 0px var(--ink); }
+        .footer-btn.active { background: #ffeaa7; }
+
+    </style>
+</head>
+<body>
+
+    <!-- Canvas untuk coret-coret -->
+    <canvas id="sketchPad"></canvas>
+    
+    <!-- Toolbar Coretan -->
+    <div class="sketch-tools" id="sketchTools">
+        <div class="tool-group">
+            <span class="tool-label">Warna</span>
+            <div class="color-dot active" style="background: #2d3436;" onclick="setInkColor('#2d3436', this)"></div>
+            <div class="color-dot" style="background: #0984e3;" onclick="setInkColor('#0984e3', this)"></div>
+            <div class="color-dot" style="background: #d63031;" onclick="setInkColor('#d63031', this)"></div>
+            <div class="color-dot" style="background: rgba(45, 52, 54, 0.3);" onclick="setInkColor('rgba(45, 52, 54, 0.3)', this)"></div>
+        </div>
+        <div class="tool-group">
+            <span class="tool-label">Pen</span>
+            <div class="size-dot" style="width: 6px; height: 6px;" onclick="setInkSize(2, this)"></div>
+            <div class="size-dot active" style="width: 10px; height: 10px;" onclick="setInkSize(4, this)"></div>
+            <div class="size-dot" style="width: 16px; height: 16px;" onclick="setInkSize(8, this)"></div>
+        </div>
+    </div>
+
+    <div class="footer-tools">
+        <button class="footer-btn" id="toggleSketchBtn" onclick="toggleSketchMode()">
+            <span>✎</span> <span id="toggleText">Mode Gambar</span>
+        </button>
+        <button class="footer-btn" onclick="clearSketch()">
+            <span>🗑️</span> <span>Hapus</span>
+        </button>
+    </div>
+
+    <div class="sketch-decor" style="top:5%; left:5%; font-size: 60px;">✎</div>
+    <div class="sketch-decor" style="bottom:15%; right:15%; font-size: 50px;">☕</div>
+
+    <div class="doodle-panel">
+        <h1 id="modeTitle">Podomoro4u.</h1>
+        
+        <div class="status-bubble" id="statusMessage">
+            by:fkryalhq_
+        </div>
+
+        <div class="visual-container">
+            <svg class="timer-svg" viewBox="0 0 220 220">
+                <circle class="timer-track" cx="110" cy="110" r="105"/>
+                <circle class="timer-progress" id="progressRing" cx="110" cy="110" r="105"/>
+            </svg>
+
+            <div class="inner-content">
+                <canvas id="gameCanvas" width="200" height="200"></canvas>
+                <div style="position: absolute; z-index: 10; text-align: center; pointer-events: none;">
+                    <div class="time-display" id="timerDisplay">40:00</div>
+                    <div id="moodIcon" style="font-size: 24px;">⊙_⊙</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="btn btn-main" id="actionBtn" onclick="toggleTimer()">Mulai</button>
+            <button class="btn" onclick="resetTimer()">Reset</button>
+        </div>
+    </div>
+
+    <script>
+        // --- Sketch Pad Logic ---
+        const sketchCanvas = document.getElementById('sketchPad');
+        const sCtx = sketchCanvas.getContext('2d');
+        let drawing = false;
+        let isSketchMode = false;
+        let currentColor = '#2d3436';
+        let currentSize = 4;
+
+        function resizeSketch() {
+            // Perbaikan error IndexSizeError: Cek dimensi sebelum getImageData
+            let tempImg = null;
+            if (sketchCanvas.width > 0 && sketchCanvas.height > 0) {
+                try {
+                    tempImg = sCtx.getImageData(0, 0, sketchCanvas.width, sketchCanvas.height);
+                } catch (e) {
+                    console.warn("Gagal menyimpan data kanvas saat resize:", e);
+                }
+            }
+
+            sketchCanvas.width = window.innerWidth;
+            sketchCanvas.height = window.innerHeight;
+
+            // Kembalikan data gambar jika ada
+            if (tempImg) {
+                sCtx.putImageData(tempImg, 0, 0);
+            }
+        }
+        window.addEventListener('resize', resizeSketch);
+        
+        // Inisialisasi awal tanpa memanggil resizeSketch yang memicu getImageData(0,0)
+        sketchCanvas.width = window.innerWidth;
+        sketchCanvas.height = window.innerHeight;
+
+        function toggleSketchMode() {
+            isSketchMode = !isSketchMode;
+            sketchCanvas.classList.toggle('active', isSketchMode);
+            document.getElementById('sketchTools').style.display = isSketchMode ? 'flex' : 'none';
+            document.getElementById('toggleSketchBtn').classList.toggle('active', isSketchMode);
+            document.getElementById('toggleText').textContent = isSketchMode ? 'Mode Lihat' : 'Mode Gambar';
+        }
+
+        function setInkColor(color, el) {
+            currentColor = color;
+            document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
+            el.classList.add('active');
+        }
+
+        function setInkSize(size, el) {
+            currentSize = size;
+            document.querySelectorAll('.size-dot').forEach(d => d.classList.remove('active'));
+            el.classList.add('active');
+        }
+
+        sketchCanvas.addEventListener('mousedown', startDrawing);
+        sketchCanvas.addEventListener('mousemove', draw);
+        sketchCanvas.addEventListener('mouseup', stopDrawing);
+        sketchCanvas.addEventListener('touchstart', (e) => { e.preventDefault(); startDrawing(e.touches[0]); });
+        sketchCanvas.addEventListener('touchmove', (e) => { e.preventDefault(); draw(e.touches[0]); });
+        sketchCanvas.addEventListener('touchend', stopDrawing);
+
+        function startDrawing(e) {
+            if(!isSketchMode) return;
+            drawing = true;
+            draw(e);
+        }
+
+        function stopDrawing() {
+            drawing = false;
+            sCtx.beginPath();
+        }
+
+        function draw(e) {
+            if (!drawing || !isSketchMode) return;
+            sCtx.lineWidth = currentSize;
+            sCtx.lineCap = 'round';
+            sCtx.lineJoin = 'round';
+            sCtx.strokeStyle = currentColor;
+
+            sCtx.lineTo(e.clientX, e.clientY);
+            sCtx.stroke();
+            sCtx.beginPath();
+            sCtx.moveTo(e.clientX, e.clientY);
+        }
+
+        function clearSketch() {
+            sCtx.clearRect(0, 0, sketchCanvas.width, sketchCanvas.height);
+        }
+
+        // --- Core Timer Logic ---
+        let timeLeft = 40 * 60;
+        let isRunning = false;
+        let isFocusMode = true;
+        let timerInterval;
+
+        const ring = document.getElementById('progressRing');
+        const display = document.getElementById('timerDisplay');
+        const gameCanvas = document.getElementById('gameCanvas');
+        const gCtx = gameCanvas.getContext('2d');
+
+        function updateDisplay() {
+            const m = Math.floor(timeLeft / 60);
+            const s = timeLeft % 60;
+            display.textContent = `${m}:${s < 10 ? '0' : ''}${s}`;
+            const total = isFocusMode ? 40*60 : 5*60;
+            const offset = 660 - (timeLeft / total) * 660;
+            ring.style.strokeDashoffset = offset;
+        }
+
+        function toggleTimer() {
+            if (isRunning) {
+                clearInterval(timerInterval);
+                isRunning = false;
+                document.getElementById('actionBtn').textContent = "Lanjutkan";
+                document.getElementById('moodIcon').textContent = "ಠ_ಠ";
+            } else {
+                isRunning = true;
+                document.getElementById('actionBtn').textContent = "Berhenti";
+                document.getElementById('moodIcon').textContent = "⊙_⊙";
+                timerInterval = setInterval(() => {
+                    if (timeLeft > 0) {
+                        timeLeft--;
+                        updateDisplay();
+                    } else {
+                        clearInterval(timerInterval);
+                        switchMode();
+                    }
+                }, 1000);
+            }
+        }
+
+        function resetTimer() {
+            clearInterval(timerInterval);
+            isRunning = false;
+            isFocusMode = true;
+            timeLeft = 40 * 60;
+            document.getElementById('modeTitle').textContent = "Fokus.";
+            document.getElementById('statusMessage').textContent = "Siap untuk bekerja?";
+            document.getElementById('actionBtn').textContent = "Mulai";
+            updateDisplay();
+        }
+
+        function switchMode() {
+            isFocusMode = !isFocusMode;
+            timeLeft = isFocusMode ? 40 * 60 : 5 * 60;
+            document.getElementById('modeTitle').textContent = isFocusMode ? "Fokus." : "Istirahat.";
+            document.getElementById('statusMessage').textContent = isFocusMode ? "Kerja lagi!" : "Main sebentar...";
+            document.getElementById('moodIcon').textContent = isFocusMode ? "⊙_⊙" : "ᕦ(ò_ó)ᕤ";
+            updateDisplay();
+            isRunning = false;
+            document.getElementById('actionBtn').textContent = "Mulai";
+            if(!isFocusMode) resetGame();
+        }
+
+        // --- Game Logic ---
+        let game = { y: 140, v: 0, obs: [], gameOver: false };
+        function resetGame() { game = { y: 140, v: 0, obs: [], gameOver: false }; }
+
+        function drawDoodleGame() {
+            gCtx.clearRect(0,0,200,200);
+            if(isFocusMode) {
+                gCtx.strokeStyle = "#ccc"; gCtx.lineWidth = 1;
+                gCtx.beginPath();
+                for(let i=0; i<5; i++) {
+                    gCtx.moveTo(Math.random()*200, Math.random()*200);
+                    gCtx.lineTo(Math.random()*200, Math.random()*200);
+                }
+                gCtx.stroke();
+                return;
+            }
+
+            gCtx.strokeStyle = "#2d3436"; gCtx.lineWidth = 2;
+            gCtx.beginPath();
+            gCtx.moveTo(20, 155);
+            for(let x=20; x<180; x+=10) gCtx.lineTo(x, 155 + (Math.random()-0.5)*2);
+            gCtx.stroke();
+
+            if(!game.gameOver) {
+                game.v += 0.6; game.y += game.v;
+                if(game.y > 140) { game.y = 140; game.v = 0; }
+            }
+
+            gCtx.fillStyle = "white"; gCtx.strokeStyle = "#2d3436"; gCtx.lineWidth = 2;
+            gCtx.strokeRect(50, game.y-20, 20, 20);
+            gCtx.fillRect(50, game.y-20, 20, 20);
+            gCtx.fillStyle = "#2d3436";
+            gCtx.fillRect(55, game.y-15, 3, 3);
+            gCtx.fillRect(63, game.y-15, 3, 3);
+
+            if(!game.gameOver && Math.random() < 0.015) game.obs.push({ x: 200, w: 12 });
+            game.obs.forEach((o, i) => {
+                o.x -= 4;
+                gCtx.beginPath();
+                gCtx.moveTo(o.x, 155);
+                gCtx.lineTo(o.x+6, 140);
+                gCtx.lineTo(o.x+12, 155);
+                gCtx.stroke();
+                if(50 < o.x + 12 && 70 > o.x && game.y > 155 - 15) game.gameOver = true;
+                if(o.x < -20) game.obs.splice(i, 1);
+            });
+
+            if(game.gameOver) {
+                gCtx.font = "14px Architects Daughter";
+                gCtx.fillText("GAGAL! KLIK LAGI", 45, 80);
+            }
+        }
+
+        gameCanvas.onmousedown = () => {
+            if(!isFocusMode) {
+                if(game.gameOver) resetGame();
+                else if(game.y === 140) game.v = -9;
+            }
+        };
+
+        function loop() {
+            drawDoodleGame();
+            requestAnimationFrame(loop);
+        }
+
+        loop();
+        updateDisplay();
+    </script>
+</body>
+</html>
